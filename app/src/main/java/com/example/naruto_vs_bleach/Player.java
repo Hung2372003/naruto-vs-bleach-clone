@@ -10,18 +10,22 @@ import android.graphics.Paint;
 import java.util.List;
 
 public class Player extends GameObject {
-    private Animation runAnim, jumpAnim, idleAnim, skillAnim;
+    private Animation runAnim, jumpAnim, idleAnim;
+    private Animation attackAnim1, attackAnim2;
+    private Animation currentAnim;
+
     private boolean jumping = false;
     private int velocityY = 0;
     private final int jumpVelocity = -60;
     private int groundY;
+    private final int gravity = 12;
 
-    private boolean isSkillActive = false;
-
-    // ✅ Tốc độ di chuyển
-    private float speed = 20f;
-
-    // ✅ Lưu kích thước màn hình để giới hạn di chuyển
+    private boolean isAttacking = false;
+    private int comboStep = 0;
+    private long lastAttackTime = 0;
+    private final long comboMaxDelay = 300; // ms
+    private boolean comboQueued = false;
+    private float speed = 35f;
     private final int screenWidth = Resources.getSystem().getDisplayMetrics().widthPixels;
 
     public Player(Context context, int groundY) {
@@ -30,12 +34,14 @@ public class Player extends GameObject {
         List<Bitmap> run = Utils.loadFrames(context, "ichigo-convert/move");
         List<Bitmap> jump = Utils.loadFrames(context, "ichigo-convert/jump");
         List<Bitmap> idle = Utils.loadFrames(context, "ichigo-convert/stance");
-        List<Bitmap> skill = Utils.loadFrames(context, "ichigo-convert/attack");
+        List<Bitmap> normalAttack1 = Utils.loadFrames(context, "ichigo-convert/attack");
+        List<Bitmap> normalAttack2 = Utils.loadFrames(context, "ichigo-convert/b-forward-attack");
 
-        runAnim = new Animation(run, 100);
+        runAnim = new Animation(run, 30);
         jumpAnim = new Animation(jump, 100);
         idleAnim = new Animation(idle, 100);
-        skillAnim = new Animation(skill, 100);
+        attackAnim1 = new Animation(normalAttack1, 80);
+        attackAnim2 = new Animation(normalAttack2, 80);
 
         currentAnim = idleAnim;
 
@@ -47,7 +53,8 @@ public class Player extends GameObject {
     public void update() {
         if (jumping) {
             y += velocityY;
-            velocityY += 7;
+            velocityY += gravity;
+
             if (y >= groundY) {
                 y = groundY;
                 jumping = false;
@@ -55,27 +62,45 @@ public class Player extends GameObject {
                 currentAnim = idleAnim;
             }
             jumpAnim.update();
-        } else if (isSkillActive) {
-            skillAnim.update();
-        } else {
-            currentAnim.update();
+            return;
         }
+
+        if (isAttacking) {
+            currentAnim.update();
+
+            if (currentAnim.isLastFrame()) {
+                isAttacking = false;
+
+                // Nếu có combo queued → trigger attack 2
+                if (comboQueued) {
+                    comboStep = 2;
+                    isAttacking = true;
+                    x += facingRight?speed*3:-speed*3;
+                    currentAnim = attackAnim2;
+                    attackAnim2.reset();
+                    comboQueued = false;
+                    lastAttackTime = System.currentTimeMillis();
+                } else {
+                    comboStep = 0;
+                    currentAnim = idleAnim;
+                }
+            }
+            return;
+        }
+
+
+        currentAnim.update();
     }
 
-    // ✅ Di chuyển theo joystick (có giới hạn màn hình)
     public void updateWithJoystick(Joystick joystick) {
+        if (isAttacking) return; // không di chuyển khi đang đánh
+
         if (joystick.active) {
             float angle = joystick.getAngle();
             float moveX = (float) Math.cos(angle) * speed;
             float moveY = (float) Math.sin(angle) * speed;
 
-            // === Di chuyển theo X ===
             x += moveX;
-
-            // ✅ Giới hạn không ra khỏi màn hình
-            int playerWidth = currentAnim.getCurrentFrame().getWidth();
-            if (x < playerWidth / 2f) x = (int) (playerWidth / 2f);
-            if (x > screenWidth - playerWidth / 2f) x = (int) (screenWidth - playerWidth / 2f);
 
             // === Nếu joystick hướng lên (nhảy) ===
             if (moveY < -5 && !jumping) {
@@ -83,26 +108,24 @@ public class Player extends GameObject {
                 return;
             }
 
-            // === Cập nhật hướng nhìn ===
             facingRight = moveX >= 0;
 
-            // === Đặt hoạt ảnh ===
-            if (!jumping && !isSkillActive && Math.abs(moveX) > 1f) {
+            if (!jumping && Math.abs(moveX) > 1f) {
                 currentAnim = runAnim;
             }
-        } else {
-            // Không di chuyển => idle
-            if (!jumping && !isSkillActive) {
-                currentAnim = idleAnim;
-            }
+        } else if (!jumping && !isAttacking) {
+            currentAnim = idleAnim;
         }
     }
+
     public Bitmap getCurrentFrame() {
         return currentAnim.getCurrentFrame();
     }
 
     public void drawAt(Canvas canvas, Paint paint, float screenX, float screenY) {
         Bitmap frame = currentAnim.getCurrentFrame();
+        if (frame == null) return;
+
         if (facingRight) {
             canvas.drawBitmap(frame, screenX - frame.getWidth() / 2f, screenY - frame.getHeight(), paint);
         } else {
@@ -112,22 +135,15 @@ public class Player extends GameObject {
             canvas.drawBitmap(flipped, screenX - frame.getWidth() / 2f, screenY - frame.getHeight(), paint);
         }
     }
-    public void move(float vx) {
-        x += vx;
-        facingRight = vx >= 0;
-        if (!jumping && !isSkillActive) {
-            currentAnim = runAnim;
-        }
-    }
 
     public void idle() {
-        if (!jumping && !isSkillActive) {
+        if (!jumping && !isAttacking) {
             currentAnim = idleAnim;
         }
     }
 
     public void jump() {
-        if (!jumping) {
+        if (!jumping && !isAttacking) {
             jumping = true;
             velocityY = jumpVelocity;
             currentAnim = jumpAnim;
@@ -135,11 +151,23 @@ public class Player extends GameObject {
         }
     }
 
-    public void skill() {
-        if (!isSkillActive) {
-            isSkillActive = true;
-            currentAnim = skillAnim;
-            skillAnim.reset();
+    // ✅ Combo attack an toàn
+    public void attack() {
+        long now = System.currentTimeMillis();
+
+        // Nếu đang đánh nhưng animation chưa xong → bỏ qua nhấn tiếp
+        if (isAttacking) {
+            // Nếu đang attack 1, nhấn trong thời gian combo → queue combo 2
+            if (comboStep == 1 && now - lastAttackTime <= comboMaxDelay) {
+                comboQueued = true;
+            }
+            return; // đang attack, không start animation mới ngay
         }
+
+        comboStep = 1;
+        isAttacking = true;
+        currentAnim = attackAnim1;
+        attackAnim1.reset();
+        lastAttackTime = now;
     }
 }

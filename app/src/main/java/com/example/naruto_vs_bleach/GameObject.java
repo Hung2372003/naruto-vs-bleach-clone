@@ -6,7 +6,7 @@ import android.graphics.Matrix;
 import android.graphics.Paint;
 
 public abstract class GameObject {
-    protected int x, y;
+    protected float x, y;
     protected boolean facingRight = true;
     protected Animation currentAnim;
 

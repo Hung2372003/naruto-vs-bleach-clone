@@ -11,6 +11,9 @@ import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class GameView extends SurfaceView implements SurfaceHolder.Callback, Runnable {
     private Thread gameThread;
     private boolean running = false;
@@ -21,7 +24,9 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
 
     private int groundY;
     private android.graphics.Bitmap background;
-
+    private List<SkillButton> skillButtons;
+    private int joystickPointerId = -1; // pointer đang điều khiển joystick
+    private final List<Integer> skillPointerIds = new ArrayList<>(); // các pointer đang nhấn skill
     public GameView(Context context) {
         super(context);
         getHolder().addCallback(this);
@@ -30,6 +35,22 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
 
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
+        // Kích thước màn hình giả định
+        float screenWidth = getWidth();
+        float screenHeight = getHeight();
+        float baseY = screenHeight - 250;
+
+// Tạo các nút skill
+        float bigRadius = 120;
+        float smallRadius = 90;
+
+        skillButtons = new ArrayList<>();
+        skillButtons.add(new SkillButton(screenWidth - 250, baseY, bigRadius, "A")); // Đánh thường
+        skillButtons.add(new SkillButton(screenWidth - 480, baseY - 180, smallRadius, "S1"));
+        skillButtons.add(new SkillButton(screenWidth - 150, baseY - 220, smallRadius, "S2"));
+        skillButtons.add(new SkillButton(screenWidth - 400, baseY + 80, smallRadius, "S3"));
+        skillButtons.add(new SkillButton(screenWidth - 80, baseY + 60, smallRadius, "S4"));
+
         groundY = getHeight() - 50;
         player = new Player(getContext(), groundY);
         joystick = new Joystick(200, getHeight() - 200, 100, 200, getHeight() - 200, 50);
@@ -39,17 +60,22 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
         gameThread.start();
     }
 
+
     @Override
     public void run() {
-        long lastTime = System.nanoTime();
-        double nsPerFrame = 1000000000.0 / 60.0; // 60 FPS
+        final int targetFPS = 60;
+        final long targetTime = 1000 / targetFPS; // mili giây mỗi khung hình
 
         while (running) {
-            long now = System.nanoTime();
-            if (now - lastTime >= nsPerFrame) {
-                update();
-                drawCanvas();
-                lastTime = now;
+            long start = System.currentTimeMillis();
+
+            update();
+            drawCanvas();
+
+            long elapsed = System.currentTimeMillis() - start;
+            long sleepTime = targetTime - elapsed;
+            if (sleepTime > 0) {
+                try { Thread.sleep(sleepTime); } catch (InterruptedException ignored) {}
             }
         }
     }
@@ -71,45 +97,43 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
             paint.setFilterBitmap(true);
             paint.setAntiAlias(true);
 
-            // === 1️⃣ Scale nền để cao bằng màn hình ===
-            float baseScale = (float) getHeight() / background.getHeight();
-            mapScale = baseScale;
-            mapWidth = Math.round(background.getWidth() * mapScale * 2.0f); // map gấp đôi màn hình
+            // === 1️⃣ Scale nền theo chiều cao màn hình ===
+            float scaleY = (float) getHeight() / background.getHeight();
+            mapScale = scaleY;
 
-            // === 2️⃣ Đặt vị trí nhân vật ban đầu ở 1/3 chiều rộng map ===
-            if (player.x == 200) { // chỉ gán một lần
-                player.x = (int) (mapWidth / 3f);
-            }
+            // === 2️⃣ Map rộng gấp đôi nền thật sau khi scale ===
+            float scaledBgWidth = background.getWidth() * scaleY;
+            mapWidth = Math.round(scaledBgWidth * 2f);
 
-            // === 3️⃣ Camera theo nhân vật, bắt đầu soi từ 0 ===
-            float halfScreen = getWidth() / 2f;
-            cameraX = player.x - halfScreen;
-
-            // === 4️⃣ Giới hạn camera trong map ===
-            if (cameraX < 0) cameraX = 0;
-            if (cameraX > mapWidth - getWidth()) cameraX = mapWidth - getWidth();
-
-            // === 5️⃣ Giới hạn nhân vật không ra ngoài map ===
+            // === 3️⃣ Giới hạn di chuyển player ===
             float playerWidth = player.getCurrentFrame().getWidth();
             if (player.x < playerWidth / 2f)
-                player.x = (int) (playerWidth / 2f);
+                player.x = playerWidth / 2f;
             if (player.x > mapWidth - playerWidth / 2f)
-                player.x = (int) (mapWidth - playerWidth / 2f);
+                player.x = mapWidth - playerWidth / 2f;
 
-            // === 6️⃣ Vẽ phần nền tương ứng với camera ===
-            int srcLeft = Math.max(0, (int) (cameraX / mapScale));
-            int srcRight = Math.min(background.getWidth(), (int) ((cameraX + getWidth()) / mapScale));
-            Rect srcRect = new Rect(srcLeft, 0, srcRight, background.getHeight());
-            Rect dstRect = new Rect(0, 0, getWidth(), getHeight());
-            canvas.drawBitmap(background, srcRect, dstRect, paint);
+            // === 4️⃣ Camera theo player ===
+            float visibleWidth = getWidth();
+            cameraX = player.x - visibleWidth / 2f;
+            if (cameraX < 0) cameraX = 0;
+            if (cameraX > mapWidth - visibleWidth)
+                cameraX = mapWidth - visibleWidth;
 
-            // === 7️⃣ Vẽ joystick ===
-            joystick.draw(canvas, paint);
+            // === 5️⃣ Vẽ nền map (2 lần nối tiếp nhau) ===
+            for (int i = 0; i < 2; i++) {
+                float bgX = i * scaledBgWidth - cameraX;
+                Rect srcRect = new Rect(0, 0, background.getWidth(), background.getHeight());
+                Rect dstRect = new Rect((int) bgX, 0, (int) (bgX + scaledBgWidth), getHeight());
+                canvas.drawBitmap(background, srcRect, dstRect, paint);
+            }
 
-            // === 8️⃣ Vẽ nhân vật theo vị trí camera ===
+            // === 6️⃣ Vẽ player ===
             float playerScreenX = player.x - cameraX;
             player.drawAt(canvas, paint, playerScreenX, player.y);
-
+            joystick.draw(canvas, paint);
+            for (SkillButton button : skillButtons) {
+                button.draw(canvas, paint);
+            }
         } finally {
             getHolder().unlockCanvasAndPost(canvas);
         }
@@ -121,41 +145,78 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
 
 
 
+
+
+
+
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        float x = event.getX();
-        float y = event.getY();
+        int action = event.getActionMasked(); // sự kiện hiện tại (DOWN, UP, MOVE)
+        int pointerIndex = event.getActionIndex(); // index của pointer
+        int pointerId = event.getPointerId(pointerIndex); // id của pointer hiện tại
+        float x = event.getX(pointerIndex);
+        float y = event.getY(pointerIndex);
 
-        switch (event.getAction()) {
+        switch (action) {
             case MotionEvent.ACTION_DOWN:
-                // Nếu chạm trong vùng joystick thì kích hoạt joystick
-                float dx = x - joystick.baseX;
-                float dy = y - joystick.baseY;
-                if (Math.hypot(dx, dy) < joystick.baseRadius * 2) {
+            case MotionEvent.ACTION_POINTER_DOWN:
+                // --- Kiểm tra skill button ---
+                boolean skillTouched = false;
+                for (SkillButton button : skillButtons) {
+                    if (button.isTouched(x, y)) {
+                        button.isPressed = true;
+                        skillPointerIds.add(pointerId); // lưu pointer đang nhấn skill
+                        skillTouched = true;
+                        if (button.label.equals("A")) player.attack();
+                        else { /* Xử lý S1–S4 */ }
+                        break;
+                    }
+                }
+
+                // --- Nếu không chạm skill thì kiểm tra joystick ---
+                if (!skillTouched && joystickPointerId == -1 &&
+                        Math.hypot(x - joystick.baseX, y - joystick.baseY) <= joystick.baseRadius * 2) {
                     joystick.active = true;
                     joystick.knobX = x;
                     joystick.knobY = y;
-                } else {
-                    // Nếu chạm ngoài joystick -> nhân vật nhảy
-                    player.jump();
+                    joystickPointerId = pointerId; // lưu pointer điều khiển joystick
                 }
                 break;
 
             case MotionEvent.ACTION_MOVE:
-                if (joystick.active) {
-                    joystick.knobX = x;
-                    joystick.knobY = y;
+                // Cập nhật joystick nếu pointer đang điều khiển nó
+                if (joystickPointerId != -1) {
+                    for (int i = 0; i < event.getPointerCount(); i++) {
+                        if (event.getPointerId(i) == joystickPointerId) {
+                            joystick.knobX = event.getX(i);
+                            joystick.knobY = event.getY(i);
+                            break;
+                        }
+                    }
                 }
                 break;
 
             case MotionEvent.ACTION_UP:
-                if (joystick.active) {
-                    joystick.reset(); // nhả tay -> joystick về giữa
+            case MotionEvent.ACTION_POINTER_UP:
+            case MotionEvent.ACTION_CANCEL:
+                // --- Kết thúc joystick ---
+                if (pointerId == joystickPointerId) {
+                    joystick.reset();
+                    joystickPointerId = -1;
+                }
+
+                // --- Kết thúc các skill button ---
+                if (skillPointerIds.contains(pointerId)) {
+                    skillPointerIds.remove((Integer) pointerId);
+                    for (SkillButton button : skillButtons) {
+                        if (button.isPressed) button.isPressed = false;
+                    }
                 }
                 break;
         }
         return true;
     }
+
 
     @Override public void surfaceChanged(SurfaceHolder h, int f, int w, int he) {}
     @Override public void surfaceDestroyed(SurfaceHolder holder) {
