@@ -19,12 +19,12 @@ public class GameActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        gameView.pause();
+        //gameView.pause();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        gameView.resume();
+        //gameView.resume();
     }
 }

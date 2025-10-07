@@ -1,11 +1,10 @@
 package com.example.naruto_vs_bleach;
 
 import android.graphics.Canvas;
-import android.graphics.Paint;
 import android.graphics.Color;
+import android.graphics.Paint;
 
 public class Joystick {
-
     public float baseX, baseY, knobX, knobY;
     public float baseRadius, knobRadius;
     public boolean active = false;
@@ -27,13 +26,15 @@ public class Joystick {
         paint.setAlpha(200);
         float dx = knobX - baseX;
         float dy = knobY - baseY;
-        float dist = (float)Math.hypot(dx, dy);
+        float dist = (float) Math.hypot(dx, dy);
         float maxDist = baseRadius;
         float drawX = knobX, drawY = knobY;
+
         if (dist > maxDist) {
             drawX = baseX + dx / dist * maxDist;
             drawY = baseY + dy / dist * maxDist;
         }
+
         canvas.drawCircle(drawX, drawY, knobRadius, paint);
     }
 
@@ -41,5 +42,31 @@ public class Joystick {
         knobX = baseX;
         knobY = baseY;
         active = false;
+    }
+
+    public float getActuatorX() {
+        float dx = knobX - baseX;
+        float dist = (float) Math.hypot(dx, knobY - baseY);
+        return dist > 0 ? dx / dist : 0;
+    }
+
+    public float getActuatorY() {
+        float dy = knobY - baseY;
+        float dist = (float) Math.hypot(knobX - baseX, dy);
+        return dist > 0 ? dy / dist : 0;
+    }
+
+    // ✅ Lấy góc theo radian
+    public float getAngle() {
+        float dx = knobX - baseX;
+        float dy = knobY - baseY;
+        return (float) Math.atan2(dy, dx);
+    }
+
+    // ✅ Lấy góc theo độ (0–360)
+    public float getAngleDegrees() {
+        float angle = (float) Math.toDegrees(getAngle());
+        if (angle < 0) angle += 360;
+        return angle;
     }
 }
