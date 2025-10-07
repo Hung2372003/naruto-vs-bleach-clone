@@ -11,7 +11,7 @@ import android.graphics.Rect;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Player extends GameObject {
+public class Boss extends GameObject {
     public int maxHp = 1000;
     public int hp = 1000;
     public boolean alive = true;
@@ -33,7 +33,7 @@ public class Player extends GameObject {
     private long lastAttackTime = 0;
     private final long comboMaxDelay = 300; // ms
     private boolean comboQueued = false;
-    private float speed = 35f;
+    public float speed = 35f;
     private final int screenWidth = Resources.getSystem().getDisplayMetrics().widthPixels;
     private List<Effect> activeEffects = new ArrayList<>();
     private Animation  attack3EffectAnim;
@@ -44,7 +44,7 @@ public class Player extends GameObject {
     private float s1SkillTargetX = 0;
     private float s1SkillMoveSpeed = 100f; // tốc độ di chuyển mỗi frame
 
-    public Player(Context context, int groundY) {
+    public Boss(Context context, int groundY) {
         this.groundY = groundY;
 
         List<Bitmap> run = Utils.loadFrames(context, "ichigo-convert/move");
@@ -109,7 +109,7 @@ public class Player extends GameObject {
                 if (usingS2Skill) {
                     usingS2Skill = false;
                 }
-               else if (comboQueued) {
+                else if (comboQueued) {
                     comboStep++; // tăng bước combo
                     comboQueued = false;
 

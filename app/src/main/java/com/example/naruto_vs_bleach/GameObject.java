@@ -28,4 +28,12 @@ public abstract class GameObject {
 
         canvas.drawBitmap(frame, matrix, paint);
     }
+    public Bitmap getCurrentFrame() {
+        if (currentAnim == null) return null;
+        return currentAnim.getCurrentFrame();
+    }
+    public boolean isAttacking() {
+        return false; // mặc định false
+    }
+
 }

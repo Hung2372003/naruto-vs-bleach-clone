@@ -2,7 +2,9 @@ package com.example.naruto_vs_bleach;
 
 
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.BlurMaskFilter;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -27,6 +29,8 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
     private List<SkillButton> skillButtons;
     private int joystickPointerId = -1; // pointer đang điều khiển joystick
     private final List<Integer> skillPointerIds = new ArrayList<>(); // các pointer đang nhấn skill
+
+    private Boss boss;
     public GameView(Context context) {
         super(context);
         getHolder().addCallback(this);
@@ -40,7 +44,6 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
         float screenHeight = getHeight();
         float baseY = screenHeight - 250;
 
-// Tạo các nút skill
         float bigRadius = 120;
         float smallRadius = 90;
 
@@ -52,7 +55,12 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
         skillButtons.add(new SkillButton(screenWidth - 80, baseY + 60, smallRadius, "S4"));
 
         groundY = getHeight() - 50;
+
         player = new Player(getContext(), groundY);
+        boss = new Boss(getContext(), groundY);
+        boss.x = player.x + 600;  // cách Player 600px
+        boss.y = groundY;
+        boss.facingRight = false;
         joystick = new Joystick(200, getHeight() - 200, 100, 200, getHeight() - 200, 50);
 
         running = true;
@@ -81,10 +89,33 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
     }
 
     private void update() {
+
         player.updateWithJoystick(joystick);
         player.update();
-    }
 
+        bossAI();
+        boss.update();
+        handleCollision();
+        checkCollisions();
+
+    }
+    private void checkCollisions() {
+        // Player attack trúng Boss
+        if (player.isAttacking || player.usingS1Skill || player.usingS2Skill) {
+            float dx = Math.abs(player.x - boss.x);
+            if (dx < 100) { // khoảng cách trúng
+                boss.takeDamage(10); // có thể tăng dmg theo attack
+            }
+        }
+
+        // Boss attack trúng Player
+        if (boss.isAttacking() || boss.usingS1Skill || boss.usingS2Skill) {
+            float dx = Math.abs(player.x - boss.x);
+            if (dx < 100) {
+                player.takeDamage(10);
+            }
+        }
+    }
     private float cameraX = 0; // vị trí camera (góc trái màn hình)
     private float mapScale;    // tỷ lệ phóng nền
     private int mapWidth;      // độ rộng map sau khi scale
@@ -129,8 +160,44 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
 
             // === 6️⃣ Vẽ player ===
             float playerScreenX = player.x - cameraX;
+            drawFootGlow(canvas, player.x - cameraX, player.y, player.getCurrentFrame().getWidth(), player.getCurrentFrame().getHeight(), Color.GREEN);
             player.drawAt(canvas, paint, playerScreenX, player.y);
+            if (boss != null) {
+                boss.drawAt(canvas, paint, boss.x - cameraX, boss.y);
+            }
+            drawFixedHealthBars(canvas, paint);
             joystick.draw(canvas, paint);
+
+
+////            drawFixedHealthBars(canvas, paint);
+//            paint.setStyle(Paint.Style.STROKE);
+//            paint.setColor(Color.RED);
+//            paint.setStrokeWidth(3);
+//
+//// Lấy kích thước frame hiện tại
+//            Bitmap playerFrame = player.getCurrentFrame();
+//            if (playerFrame != null) {
+//                float left = player.x - playerFrame.getWidth() / 2f - cameraX;
+//                float top = player.y - playerFrame.getHeight();
+//                float right = player.x + playerFrame.getWidth() / 2f - cameraX;
+//                float bottom = player.y;
+//
+//                canvas.drawRect(left, top, right, bottom, paint);
+//            }
+//
+//// Vẽ hitbox Boss (debug)
+//            Bitmap bossFrame = boss.getCurrentFrame();
+//            if (bossFrame != null) {
+//                float left = boss.x - bossFrame.getWidth() / 2f - cameraX;
+//                float top = boss.y - bossFrame.getHeight();
+//                float right = boss.x + bossFrame.getWidth() / 2f - cameraX;
+//                float bottom = boss.y;
+//
+//                canvas.drawRect(left, top, right, bottom, paint);
+//            }
+
+// Reset paint
+            paint.setStyle(Paint.Style.FILL);
             for (SkillButton button : skillButtons) {
                 button.draw(canvas, paint);
             }
@@ -138,13 +205,6 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
             getHolder().unlockCanvasAndPost(canvas);
         }
     }
-
-
-
-
-
-
-
 
 
 
@@ -168,7 +228,12 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
                         skillPointerIds.add(pointerId); // lưu pointer đang nhấn skill
                         skillTouched = true;
                         if (button.label.equals("A")) player.attack();
-                        else { /* Xử lý S1–S4 */ }
+                        else if(button.label.equals("S1")){
+                            player.useS1Skill();
+                        }
+                        else if(button.label.equals("S2")){
+                            player.useS2Skill();
+                        }
                         break;
                     }
                 }
@@ -223,4 +288,82 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
         running = false;
         try { gameThread.join(); } catch (Exception e) {}
     }
+    private void drawFixedHealthBars(Canvas canvas, Paint paint) {
+        float barWidth = 400, barHeight = 40, padding = 20;
+
+        // Player góc trái
+        float left = padding, top = padding;
+        float right = left + barWidth * ((float) player.hp / player.maxHp);
+        canvas.drawRect(left, top, left + barWidth, top + barHeight, paint); // viền đen
+        paint.setColor(0xFFFF0000);
+        canvas.drawRect(left, top, right, top + barHeight, paint);
+
+        // Boss góc phải
+        float bossLeft = getWidth() - barWidth - padding;
+        float bossTop = padding;
+        float bossRight = bossLeft + barWidth * ((float) boss.hp / boss.maxHp);
+        paint.setColor(0xFF000000);
+        canvas.drawRect(bossLeft, bossTop, bossLeft + barWidth, bossTop + barHeight, paint);
+        paint.setColor(0xFFFF0000);
+        canvas.drawRect(bossLeft, bossTop, bossRight, bossTop + barHeight, paint);
+    }
+    private void bossAI() {
+        float distance = player.x - boss.x;
+
+        if (Math.abs(distance) > 150) {
+            boss.facingRight = distance > 0;
+            boss.x += Math.signum(distance) * boss.speed * 0.5f;
+
+            if (!boss.isAttacking) {
+                boss.currentAnim = boss.runAnim; // ✅ đổi animation chạy
+            }
+        } else {
+            if (!boss.isAttacking) {
+                // Ngẫu nhiên đánh hoặc dùng skill
+                if (Math.random() < 0.5) boss.attack();
+                else if (Math.random() < 0.5) boss.useS1Skill();
+                else boss.useS2Skill();
+            }
+        }
+
+        // luôn update animation
+        if (boss.currentAnim != null) boss.currentAnim.update();
+    }
+    private void handleCollision() {
+        Rect playerRect = player.getBounds();
+        Rect bossRect = boss.getBounds();
+
+        if (Rect.intersects(playerRect, bossRect)) {
+            // Tính overlap ngang
+            float overlapLeft = playerRect.right - bossRect.left -50;
+            float overlapRight = bossRect.right - playerRect.left -50;
+
+            // Chọn overlap nhỏ nhất để đẩy ra
+            float overlap = Math.min(overlapLeft, overlapRight);
+
+            if (overlapLeft < overlapRight) player.x -= overlap;
+            else player.x += overlap;
+
+            // Gây sát thương nếu đang tấn công
+            if (player.isAttacking || player.usingS1Skill || player.usingS2Skill)
+                boss.takeDamage(10);
+            if (boss.isAttacking() || boss.usingS1Skill || boss.usingS2Skill)
+                player.takeDamage(10);
+        }
+    }
+    private void drawFootGlow(Canvas canvas, float x, float y, float width, float height, int color) {
+        Paint glowPaint = new Paint();
+        glowPaint.setColor(color);
+        glowPaint.setStyle(Paint.Style.FILL);
+        glowPaint.setAlpha(120); // độ trong suốt
+        glowPaint.setMaskFilter(new BlurMaskFilter(15, BlurMaskFilter.Blur.NORMAL)); // làm mềm
+
+        float cx = x;                 // tâm ngang
+        float cy = y;                 // y = chân nhân vật
+        float radiusX = width * 0.6f; // rộng hơn chân một chút
+        float radiusY = height * 0.2f; // mỏng dọc theo y
+
+        canvas.drawOval(cx - radiusX, cy - radiusY, cx + radiusX, cy + radiusY, glowPaint);
+    }
+
 }
