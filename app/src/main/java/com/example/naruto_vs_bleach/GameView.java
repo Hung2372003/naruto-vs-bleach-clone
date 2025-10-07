@@ -58,6 +58,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
 
         player = new Player(getContext(), groundY);
         boss = new Boss(getContext(), groundY);
+        boss.setMapWidth(mapWidth);
         boss.x = player.x + 600;  // cách Player 600px
         boss.y = groundY;
         boss.facingRight = false;

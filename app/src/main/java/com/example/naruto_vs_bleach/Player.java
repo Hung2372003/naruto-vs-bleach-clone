@@ -12,8 +12,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Player extends GameObject {
-    public int maxHp = 1000;
-    public int hp = 1000;
+    public int maxHp = 9999;
+    public int hp = 8888;
     public boolean alive = true;
     public Animation runAnim, jumpAnim, idleAnim;
     private Animation attackAnim1, attackAnim2, attackAnim3;

@@ -43,7 +43,10 @@ public class Boss extends GameObject {
     private boolean s1SkillMoving = false;
     private float s1SkillTargetX = 0;
     private float s1SkillMoveSpeed = 100f; // tốc độ di chuyển mỗi frame
-
+    private float mapWidth;
+    public void setMapWidth(float mapWidth) {
+        this.mapWidth = mapWidth;
+    }
     public Boss(Context context, int groundY) {
         this.groundY = groundY;
 
@@ -219,27 +222,44 @@ public class Boss extends GameObject {
         lastAttackTime = now;
     }
     public void useS1Skill() {
-        if (isAttacking || usingS1Skill) return; // không dùng skill khi đang đánh hoặc đang skill khác
+        if (isAttacking || usingS1Skill) return;
 
         usingS1Skill = true;
-        isAttacking = true; // khóa movement
+        isAttacking = true;
 
         currentAnim = s1SkillAnim;
         s1SkillAnim.reset();
-//        s1SkillMoveSpeed = speed*3 ;
-        s1SkillTargetX = x + (facingRight ? speed * 20 : -speed * 20);
-        s1SkillMoving = true;
 
+        // Tính vị trí mục tiêu dựa trên hướng Boss
+        float distance = speed * 20;
+        float targetX = facingRight ? x + distance : x - distance;
+
+        // Giới hạn không ra ngoài map
+        if (targetX < 0) targetX = 0;
+        if (targetX > mapWidth) targetX = mapWidth;
+
+        s1SkillTargetX = targetX;
+        s1SkillMoving = true;
     }
+
+
     public void useS2Skill() {
-        if (isAttacking || usingS2Skill) return; // không dùng skill khi đang đánh hoặc đang skill khác
+        if (isAttacking || usingS2Skill) return;
 
         usingS2Skill = true;
-        isAttacking = true; // khóa movement
+        isAttacking = true;
+
         currentAnim = s2SkillAnim;
         s2SkillAnim.reset();
-        s1SkillMoveSpeed = speed*3 ;
-        x = x + (facingRight ? speed * 30 : -speed * 30);
+
+        float distance = speed * 30;
+        float targetX = facingRight ? x + distance : x - distance;
+
+        // Giới hạn không ra ngoài map
+        if (targetX < 0) targetX = 0;
+        if (targetX > mapWidth) targetX = mapWidth;
+
+        x = targetX; // dịch chuyển ngay lập tức nhưng vẫn giới hạn
     }
 
     public void takeDamage(int dmg) {
