@@ -1,45 +1,69 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    tools:context=".SecondFragment">
+    android:layout_height="match_parent">
 
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:padding="16dp">
-        <Button
-            android:id="@+id/button_second"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/previous"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
-        <Button
-            android:id="@+id/buttonPlayGame"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/play_game"
-            app:layout_constraintTop_toBottomOf="@id/button_second"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent" />
+    <!-- Ảnh nền: giữ nguyên tỉ lệ, hiển thị đủ hình -->
+    <ImageView
+        android:id="@+id/bg"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:src="@drawable/naruto_and_bleach"
+        android:scaleType="fitCenter"
+        android:adjustViewBounds="true"
+        app:layout_constraintDimensionRatio="16:9"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
 
-        <TextView
-            android:id="@+id/textview_second"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="@string/lorem_ipsum"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/buttonPlayGame" />
+    <!-- Tiêu đề (tùy chọn) -->
+    <TextView
+        android:id="@+id/title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="NARUTO vs BLEACH"
+        android:textStyle="bold"
+        android:textSize="26sp"
+        android:textColor="#FFFFFF"
+        android:shadowColor="#99000000"
+        android:shadowDx="0" android:shadowDy="2" android:shadowRadius="6"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="24dp"/>
 
+    <!-- Hai nút: cùng size, chain căn giữa -->
+    <ImageButton
+        android:id="@+id/btnSettings"
+        android:layout_width="@dimen/start_btn_size"
+        android:layout_height="@dimen/start_btn_size"
+        android:background="@android:color/transparent"
+        android:contentDescription="@string/settings"
+        android:padding="6dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/btn_settings"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/btnPlay"
+        app:layout_constraintHorizontal_chainStyle="packed"
+        android:layout_marginEnd="@dimen/start_btn_gap"
+        android:layout_marginBottom="@dimen/start_btn_bottom_margin"/>
 
-    </androidx.constraintlayout.widget.ConstraintLayout>
-
-
-</androidx.core.widget.NestedScrollView>
+    <ImageButton
+        android:id="@+id/btnPlay"
+        android:layout_width="@dimen/start_btn_size"
+        android:layout_height="@dimen/start_btn_size"
+        android:background="@android:color/transparent"
+        android:contentDescription="@string/play"
+        android:padding="6dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/play"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toEndOf="@id/btnSettings"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginBottom="@dimen/start_btn_bottom_margin"/>
+</androidx.constraintlayout.widget.ConstraintLayout>

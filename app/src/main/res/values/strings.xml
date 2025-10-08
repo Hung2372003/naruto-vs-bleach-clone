@@ -6,6 +6,9 @@
     <string name="second_fragment_label">Second Fragment</string>
     <string name="next">Next</string>
     <string name="previous">Previous</string>
+    <string name="play">Play</string>
+    <string name="settings">Settings</string>
+
 
     <string name="lorem_ipsum">
         Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nam in scelerisque sem. Mauris
@@ -44,4 +47,22 @@
         vestibulum. Fusce dictum libero quis erat maximus, vitae volutpat diam dignissim.
     </string>
     <string name="play_game">Play game</string>
+    <string name="difficulty">Độ khó</string>
+    <string name="easy">Dễ</string>
+    <string name="normal">Thường</string>
+    <string name="hard">Khó</string>
+
+    <string name="health">Thanh máu</string>
+    <string name="hp_100">100%</string>
+    <string name="hp_200">200%</string>
+
+    <string name="time_limit">Thời gian</string>
+    <string name="t60">60s</string>
+    <string name="t120">120s</string>
+    <string name="t_infinite">Vô thời hạn</string>
+
+    <string name="sfx_volume">Âm thanh (SFX)</string>
+    <string name="music_volume">Nhạc nền (BGM)</string>
+    <string name="done">Xong</string>
+
 </resources>
