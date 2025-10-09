@@ -1,36 +1,30 @@
 package com.example.naruto_vs_bleach;
 
-
 import android.content.Context;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.BlurMaskFilter;
-import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.Paint;
-import android.graphics.Rect;
-import android.view.MotionEvent;
-import android.view.SurfaceHolder;
-import android.view.SurfaceView;
-
+import android.graphics.*;
+import android.view.*;
 import java.util.ArrayList;
 import java.util.List;
 
 public class GameView extends SurfaceView implements SurfaceHolder.Callback, Runnable {
+
     private Thread gameThread;
     private boolean running = false;
-    private Paint paint = new Paint();
+    private final Paint paint = new Paint();
 
     private Player player;
-    private Joystick joystick;
-
-    private int groundY;
-    private android.graphics.Bitmap background;
-    private List<SkillButton> skillButtons;
-    private int joystickPointerId = -1; // pointer đang điều khiển joystick
-    private final List<Integer> skillPointerIds = new ArrayList<>(); // các pointer đang nhấn skill
-
     private Boss boss;
+    private Joystick joystick;
+    private List<SkillButton> skillButtons;
+    private int groundY;
+    private final List<Integer> skillPointerIds = new ArrayList<>();
+
+    private Bitmap background;
+    private float cameraX = 0;
+    private float mapScale;
+    private int mapWidth;
+    private float dpUnit = 1f;
+
     public GameView(Context context) {
         super(context);
         getHolder().addCallback(this);
@@ -39,87 +33,111 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
 
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
-        // Kích thước màn hình giả định
         float screenWidth = getWidth();
         float screenHeight = getHeight();
         float baseY = screenHeight - 250;
 
-        float bigRadius = 120;
-        float smallRadius = 90;
+        // ---- Skill buttons ----
+        dpUnit = Math.min(screenWidth, screenHeight) / 411f;
+        float margin = 16f * dpUnit;
+        float gap    = 14f * dpUnit;
+        float safeBottom = 24f * dpUnit;
+
+        float rA = 48f * dpUnit;   // nút A
+        float rS = 36f * dpUnit;   // nút skill
+
+// ĐẨY TÂM A VÀO TRONG = chừa chỗ cho nút bên phải & dưới
+        float aCx = screenWidth  - margin - rA - (rS + gap);
+        float aCy = screenHeight - margin - safeBottom - rA - (rS + gap);
+
+// Khoảng cách tâm→tâm đảm bảo không chạm nhau
+        float D = rA + rS + gap;
+
+// Tính toạ độ vệ tinh quanh A (kim cương)
+        float[] pS1 = polar(aCx, aCy, D,  45);   // trên
+        float[] pS2 = polar(aCx, aCy, D, 135);   // trên-trái (dịch trái hơn chút so với 150)
+        float[] pS3 = polar(aCx, aCy, D, 225);   // dưới-trái
+        float[] pS4 = polar(aCx, aCy, D, 315);   // dưới-phải (không chạm mép nữa)
 
         skillButtons = new ArrayList<>();
-        skillButtons.add(new SkillButton(screenWidth - 250, baseY, bigRadius, "A")); // Đánh thường
-        skillButtons.add(new SkillButton(screenWidth - 480, baseY - 180, smallRadius, "S1"));
-        skillButtons.add(new SkillButton(screenWidth - 150, baseY - 220, smallRadius, "S2"));
-        skillButtons.add(new SkillButton(screenWidth - 400, baseY + 80, smallRadius, "S3"));
-        skillButtons.add(new SkillButton(screenWidth - 80, baseY + 60, smallRadius, "S4"));
+        skillButtons.add(new SkillButton(aCx,      aCy,      rA, "A"));
+        skillButtons.add(new SkillButton(pS1[0],   pS1[1],   rS, "S1"));
+        skillButtons.add(new SkillButton(pS2[0],   pS2[1],   rS, "S2"));
+        skillButtons.add(new SkillButton(pS3[0],   pS3[1],   rS, "S3"));
+        skillButtons.add(new SkillButton(pS4[0],   pS4[1],   rS, "S4"));
+
+
 
         groundY = getHeight() - 50;
 
+        // ---- Player & Boss ----
         player = new Player(getContext(), groundY);
-        boss = new Boss(getContext(), groundY);
-        boss.setMapWidth(mapWidth);
-        boss.x = player.x + 600;  // cách Player 600px
-        boss.y = groundY;
-        boss.facingRight = false;
+        boss = new Boss(getContext(), groundY, player);
+
+        // ---- Joystick ----
         joystick = new Joystick(200, getHeight() - 200, 100, 200, getHeight() - 200, 50);
 
+        // ---- Start game thread ----
         running = true;
         gameThread = new Thread(this);
         gameThread.start();
     }
 
+    private float[] polar(float cx, float cy, float dist, float deg) {
+        double rad = Math.toRadians(deg);
+        float x = cx + (float) (Math.cos(rad) * dist);
+        float y = cy - (float) (Math.sin(rad) * dist);
+
+        // nẹp nhẹ tránh tràn quá mức, nhưng KHÔNG rút ngắn khoảng cách D
+        float pad = 8f * dpUnit;
+        x = Math.max(pad, Math.min(getWidth()  - pad, x));
+        y = Math.max(pad, Math.min(getHeight() - pad, y));
+        return new float[]{x, y};
+    }
 
     @Override
     public void run() {
         final int targetFPS = 60;
-        final long targetTime = 1000 / targetFPS; // mili giây mỗi khung hình
+        final long frameTime = 1000 / targetFPS;
 
         while (running) {
             long start = System.currentTimeMillis();
-
             update();
             drawCanvas();
-
-            long elapsed = System.currentTimeMillis() - start;
-            long sleepTime = targetTime - elapsed;
-            if (sleepTime > 0) {
-                try { Thread.sleep(sleepTime); } catch (InterruptedException ignored) {}
-            }
+            long sleep = frameTime - (System.currentTimeMillis() - start);
+            if (sleep > 0) try { Thread.sleep(sleep); } catch (InterruptedException ignored) {}
         }
     }
 
     private void update() {
-
+        // ---- Player update ----
         player.updateWithJoystick(joystick);
         player.update();
 
-        bossAI();
+        // ---- Boss AI update ----
         boss.update();
-        handleCollision();
+
+        // ---- Check collision ----
         checkCollisions();
-
     }
+
     private void checkCollisions() {
-        // Player attack trúng Boss
-        if (player.isAttacking || player.usingS1Skill || player.usingS2Skill) {
-            float dx = Math.abs(player.x - boss.x);
-            if (dx < 100) { // khoảng cách trúng
-                boss.takeDamage(10); // có thể tăng dmg theo attack
-            }
+        Rect playerHitbox = player.getBounds();
+        Rect bossHitbox = boss.getBounds();
+
+        // Player attack hits Boss
+        if ((player.isAttacking || player.usingS1Skill || player.usingS2Skill || player.usingS3Skill)
+                && Rect.intersects(playerHitbox, bossHitbox)) {
+            boss.takeDamage(10);
         }
 
-        // Boss attack trúng Player
-        if (boss.isAttacking() || boss.usingS1Skill || boss.usingS2Skill) {
-            float dx = Math.abs(player.x - boss.x);
-            if (dx < 100) {
-                player.takeDamage(10);
-            }
+        // Boss attack hits Player
+        if ((boss.isAttacking() || boss.usingS1Skill || boss.usingS2Skill || boss.usingS3Skill)
+                && Rect.intersects(playerHitbox, bossHitbox)) {
+            player.takeDamage(10);
         }
     }
-    private float cameraX = 0; // vị trí camera (góc trái màn hình)
-    private float mapScale;    // tỷ lệ phóng nền
-    private int mapWidth;      // độ rộng map sau khi scale
+
 
     private void drawCanvas() {
         if (!getHolder().getSurface().isValid()) return;
@@ -129,242 +147,113 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
             paint.setFilterBitmap(true);
             paint.setAntiAlias(true);
 
-            // === 1️⃣ Scale nền theo chiều cao màn hình ===
+            // ---- Scale background ----
             float scaleY = (float) getHeight() / background.getHeight();
             mapScale = scaleY;
-
-            // === 2️⃣ Map rộng gấp đôi nền thật sau khi scale ===
             float scaledBgWidth = background.getWidth() * scaleY;
             mapWidth = Math.round(scaledBgWidth * 2f);
 
-            // === 3️⃣ Giới hạn di chuyển player ===
-            float playerWidth = player.getCurrentFrame().getWidth();
-            if (player.x < playerWidth / 2f)
-                player.x = playerWidth / 2f;
-            if (player.x > mapWidth - playerWidth / 2f)
-                player.x = mapWidth - playerWidth / 2f;
+            // ---- Camera follow player ----
+            Bitmap playerFrame = player.getCurrentFrame();
+            if (playerFrame != null) {
+                float playerW = playerFrame.getWidth();
+                if (player.x < playerW / 2f) player.x = playerW / 2f;
+                if (player.x > mapWidth - playerW / 2f) player.x = mapWidth - playerW / 2f;
+            }
 
-            // === 4️⃣ Camera theo player ===
             float visibleWidth = getWidth();
             cameraX = player.x - visibleWidth / 2f;
             if (cameraX < 0) cameraX = 0;
-            if (cameraX > mapWidth - visibleWidth)
-                cameraX = mapWidth - visibleWidth;
+            if (cameraX > mapWidth - visibleWidth) cameraX = mapWidth - visibleWidth;
 
-            // === 5️⃣ Vẽ nền map (2 lần nối tiếp nhau) ===
+            // ---- Draw background twice ----
             for (int i = 0; i < 2; i++) {
                 float bgX = i * scaledBgWidth - cameraX;
-                Rect srcRect = new Rect(0, 0, background.getWidth(), background.getHeight());
-                Rect dstRect = new Rect((int) bgX, 0, (int) (bgX + scaledBgWidth), getHeight());
-                canvas.drawBitmap(background, srcRect, dstRect, paint);
+                Rect src = new Rect(0, 0, background.getWidth(), background.getHeight());
+                Rect dst = new Rect((int) bgX, 0, (int) (bgX + scaledBgWidth), getHeight());
+                canvas.drawBitmap(background, src, dst, paint);
             }
 
-            // === 6️⃣ Vẽ player ===
+            // ---- Draw foot glows ----
             float playerScreenX = player.x - cameraX;
-            drawFootGlow(canvas, player.x - cameraX, player.y, player.getCurrentFrame().getWidth(), player.getCurrentFrame().getHeight(), Color.GREEN);
+            float bossScreenX = boss.x - cameraX;
+
+            drawFootGlow(canvas, playerScreenX, player.y, player.getCurrentFrame().getWidth(),
+                    player.getCurrentFrame().getHeight(), Color.GREEN);
+            drawFootGlow(canvas, bossScreenX, boss.y, boss.getCurrentFrame().getWidth(),
+                    boss.getCurrentFrame().getHeight(), Color.RED);
+
+            // ---- Draw characters ----
             player.drawAt(canvas, paint, playerScreenX, player.y);
-            if (boss != null) {
-                boss.drawAt(canvas, paint, boss.x - cameraX, boss.y);
-            }
-            drawFixedHealthBars(canvas, paint);
+            boss.drawAt(canvas, paint, bossScreenX, boss.y);
+
+            // ---- Health bars ----
+            drawHealthBars(canvas);
+
+            // ---- UI ----
             joystick.draw(canvas, paint);
+            for (SkillButton btn : skillButtons) btn.draw(canvas);
 
-
-////            drawFixedHealthBars(canvas, paint);
-//            paint.setStyle(Paint.Style.STROKE);
-//            paint.setColor(Color.RED);
-//            paint.setStrokeWidth(3);
-//
-//// Lấy kích thước frame hiện tại
-//            Bitmap playerFrame = player.getCurrentFrame();
-//            if (playerFrame != null) {
-//                float left = player.x - playerFrame.getWidth() / 2f - cameraX;
-//                float top = player.y - playerFrame.getHeight();
-//                float right = player.x + playerFrame.getWidth() / 2f - cameraX;
-//                float bottom = player.y;
-//
-//                canvas.drawRect(left, top, right, bottom, paint);
-//            }
-//
-//// Vẽ hitbox Boss (debug)
-//            Bitmap bossFrame = boss.getCurrentFrame();
-//            if (bossFrame != null) {
-//                float left = boss.x - bossFrame.getWidth() / 2f - cameraX;
-//                float top = boss.y - bossFrame.getHeight();
-//                float right = boss.x + bossFrame.getWidth() / 2f - cameraX;
-//                float bottom = boss.y;
-//
-//                canvas.drawRect(left, top, right, bottom, paint);
-//            }
-
-// Reset paint
-            paint.setStyle(Paint.Style.FILL);
-            for (SkillButton button : skillButtons) {
-                button.draw(canvas, paint);
-            }
         } finally {
             getHolder().unlockCanvasAndPost(canvas);
         }
     }
 
+    private void drawHealthBars(Canvas canvas) {
+        Paint p = new Paint();
+        float barWidth = 400, barHeight = 40, pad = 20;
 
+        // Player HP
+        float left = pad, top = pad;
+        p.setColor(Color.BLACK);
+        canvas.drawRect(left, top, left + barWidth, top + barHeight, p);
+        p.setColor(Color.RED);
+        canvas.drawRect(left, top, left + barWidth * ((float) player.hp / player.maxHp), top + barHeight, p);
 
+        // Boss HP
+        float right = getWidth() - barWidth - pad;
+        p.setColor(Color.BLACK);
+        canvas.drawRect(right, top, right + barWidth, top + barHeight, p);
+        p.setColor(Color.RED);
+        canvas.drawRect(right, top, right + barWidth * ((float) boss.hp / boss.maxHp), top + barHeight, p);
+    }
+
+    private void drawFootGlow(Canvas canvas, float x, float y, float w, float h, int color) {
+        Paint g = new Paint();
+        g.setColor(color);
+        g.setAlpha(100);
+        g.setMaskFilter(new BlurMaskFilter(15, BlurMaskFilter.Blur.NORMAL));
+        canvas.drawOval(x - w * 0.6f, y - h * 0.1f, x + w * 0.6f, y + h * 0.1f, g);
+    }
 
     @Override
-    public boolean onTouchEvent(MotionEvent event) {
-        int action = event.getActionMasked(); // sự kiện hiện tại (DOWN, UP, MOVE)
-        int pointerIndex = event.getActionIndex(); // index của pointer
-        int pointerId = event.getPointerId(pointerIndex); // id của pointer hiện tại
-        float x = event.getX(pointerIndex);
-        float y = event.getY(pointerIndex);
+    public boolean onTouchEvent(MotionEvent e) {
+        int idx = e.getActionIndex();
+        int pid = e.getPointerId(idx);
+        float x = e.getX(idx), y = e.getY(idx);
 
-        switch (action) {
+        switch (e.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
             case MotionEvent.ACTION_POINTER_DOWN:
-                // --- Kiểm tra skill button ---
-                boolean skillTouched = false;
-                for (SkillButton button : skillButtons) {
-                    if (button.isTouched(x, y)) {
-                        button.isPressed = true;
-                        skillPointerIds.add(pointerId); // lưu pointer đang nhấn skill
-                        skillTouched = true;
-                        if (button.label.equals("A")) player.attack();
-                        else if(button.label.equals("S1")){
-                            player.useS1Skill();
-                        }
-                        else if(button.label.equals("S2")){
-                            player.useS2Skill();
-                        }
-                        break;
-                    }
-                }
-
-                // --- Nếu không chạm skill thì kiểm tra joystick ---
-                if (!skillTouched && joystickPointerId == -1 &&
-                        Math.hypot(x - joystick.baseX, y - joystick.baseY) <= joystick.baseRadius * 2) {
-                    joystick.active = true;
-                    joystick.knobX = x;
-                    joystick.knobY = y;
-                    joystickPointerId = pointerId; // lưu pointer điều khiển joystick
-                }
+                player.handleTouchDown(x, y, pid, joystick, skillButtons, skillPointerIds);
                 break;
-
             case MotionEvent.ACTION_MOVE:
-                // Cập nhật joystick nếu pointer đang điều khiển nó
-                if (joystickPointerId != -1) {
-                    for (int i = 0; i < event.getPointerCount(); i++) {
-                        if (event.getPointerId(i) == joystickPointerId) {
-                            joystick.knobX = event.getX(i);
-                            joystick.knobY = event.getY(i);
-                            break;
-                        }
-                    }
-                }
+                player.handleTouchMove(e, joystick);
                 break;
-
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_POINTER_UP:
             case MotionEvent.ACTION_CANCEL:
-                // --- Kết thúc joystick ---
-                if (pointerId == joystickPointerId) {
-                    joystick.reset();
-                    joystickPointerId = -1;
-                }
-
-                // --- Kết thúc các skill button ---
-                if (skillPointerIds.contains(pointerId)) {
-                    skillPointerIds.remove((Integer) pointerId);
-                    for (SkillButton button : skillButtons) {
-                        if (button.isPressed) button.isPressed = false;
-                    }
-                }
+                player.handleTouchUp(pid, joystick, skillButtons, skillPointerIds);
                 break;
         }
         return true;
     }
 
-
-    @Override public void surfaceChanged(SurfaceHolder h, int f, int w, int he) {}
-    @Override public void surfaceDestroyed(SurfaceHolder holder) {
+    @Override
+    public void surfaceChanged(SurfaceHolder h, int f, int w, int he) {}
+    @Override
+    public void surfaceDestroyed(SurfaceHolder holder) {
         running = false;
-        try { gameThread.join(); } catch (Exception e) {}
+        try { gameThread.join(); } catch (Exception ignored) {}
     }
-    private void drawFixedHealthBars(Canvas canvas, Paint paint) {
-        float barWidth = 400, barHeight = 40, padding = 20;
-
-        // Player góc trái
-        float left = padding, top = padding;
-        float right = left + barWidth * ((float) player.hp / player.maxHp);
-        canvas.drawRect(left, top, left + barWidth, top + barHeight, paint); // viền đen
-        paint.setColor(0xFFFF0000);
-        canvas.drawRect(left, top, right, top + barHeight, paint);
-
-        // Boss góc phải
-        float bossLeft = getWidth() - barWidth - padding;
-        float bossTop = padding;
-        float bossRight = bossLeft + barWidth * ((float) boss.hp / boss.maxHp);
-        paint.setColor(0xFF000000);
-        canvas.drawRect(bossLeft, bossTop, bossLeft + barWidth, bossTop + barHeight, paint);
-        paint.setColor(0xFFFF0000);
-        canvas.drawRect(bossLeft, bossTop, bossRight, bossTop + barHeight, paint);
-    }
-    private void bossAI() {
-        float distance = player.x - boss.x;
-
-        if (Math.abs(distance) > 150) {
-            boss.facingRight = distance > 0;
-            boss.x += Math.signum(distance) * boss.speed * 0.5f;
-
-            if (!boss.isAttacking) {
-                boss.currentAnim = boss.runAnim; // ✅ đổi animation chạy
-            }
-        } else {
-            if (!boss.isAttacking) {
-                // Ngẫu nhiên đánh hoặc dùng skill
-                if (Math.random() < 0.5) boss.attack();
-                else if (Math.random() < 0.5) boss.useS1Skill();
-                else boss.useS2Skill();
-            }
-        }
-
-        // luôn update animation
-        if (boss.currentAnim != null) boss.currentAnim.update();
-    }
-    private void handleCollision() {
-        Rect playerRect = player.getBounds();
-        Rect bossRect = boss.getBounds();
-
-        if (Rect.intersects(playerRect, bossRect)) {
-            // Tính overlap ngang
-            float overlapLeft = playerRect.right - bossRect.left -50;
-            float overlapRight = bossRect.right - playerRect.left -50;
-
-            // Chọn overlap nhỏ nhất để đẩy ra
-            float overlap = Math.min(overlapLeft, overlapRight);
-
-            if (overlapLeft < overlapRight) player.x -= overlap;
-            else player.x += overlap;
-
-            // Gây sát thương nếu đang tấn công
-            if (player.isAttacking || player.usingS1Skill || player.usingS2Skill)
-                boss.takeDamage(10);
-            if (boss.isAttacking() || boss.usingS1Skill || boss.usingS2Skill)
-                player.takeDamage(10);
-        }
-    }
-    private void drawFootGlow(Canvas canvas, float x, float y, float width, float height, int color) {
-        Paint glowPaint = new Paint();
-        glowPaint.setColor(color);
-        glowPaint.setStyle(Paint.Style.FILL);
-        glowPaint.setAlpha(120); // độ trong suốt
-        glowPaint.setMaskFilter(new BlurMaskFilter(15, BlurMaskFilter.Blur.NORMAL)); // làm mềm
-
-        float cx = x;                 // tâm ngang
-        float cy = y;                 // y = chân nhân vật
-        float radiusX = width * 0.6f; // rộng hơn chân một chút
-        float radiusY = height * 0.2f; // mỏng dọc theo y
-
-        canvas.drawOval(cx - radiusX, cy - radiusY, cx + radiusX, cy + radiusY, glowPaint);
-    }
-
 }
