@@ -5,7 +5,10 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 
 public class Effect {
-    public enum Layer { FRONT, BACK }
+    public enum Layer { FRONT, BACK , BACKGROUND,
+        MID,
+        TOP
+    }
 
     public float x, y;
     private Animation anim;
