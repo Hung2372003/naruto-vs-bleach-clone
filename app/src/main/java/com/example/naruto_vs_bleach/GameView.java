@@ -1,5 +1,6 @@
 package com.example.naruto_vs_bleach;
 
+import android.content.Intent;
 import android.content.Context;
 import android.graphics.*;
 import android.view.*;
@@ -10,6 +11,8 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
 
     private Thread gameThread;
     private boolean running = false;
+    private boolean gameOverLaunched = false;
+
     private final Paint paint = new Paint();
 
     private Player player;
@@ -119,7 +122,32 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
 
         // ---- Check collision ----
         checkCollisions();
+        if (!gameOverLaunched) {
+            if (boss != null && (!boss.alive || boss.hp <= 0)) {
+                launchGameOver(true);      // Bạn thắng
+                return;
+            }
+            if (player != null && (!player.alive || player.hp <= 0)) {
+                launchGameOver(false);     // Bạn thua
+                return;
+            }
+        }
+
+
     }
+    private void launchGameOver(boolean win) {
+        if (gameOverLaunched) return;
+        gameOverLaunched = true;
+        Context ctx = getContext();
+        Intent it = new Intent(ctx, GameOverActivity.class);
+        it.putExtra(GameOverActivity.EXTRA_RESULT, win ? "win" : "lose");
+        it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        ctx.startActivity(it);
+
+        // dừng loop hiện tại cho sạch
+        running = false;
+    }
+
 
     private void checkCollisions() {
         Rect playerHitbox = player.getBounds();
@@ -231,9 +259,13 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
         int idx = e.getActionIndex();
         int pid = e.getPointerId(idx);
         float x = e.getX(idx), y = e.getY(idx);
-
+        if (!gameOverLaunched && e.getPointerCount() >= 1) { // chạm 3 ngón để mở thua ngay
+            launchGameOver(true);
+            return true;
+        }
         switch (e.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
+
             case MotionEvent.ACTION_POINTER_DOWN:
                 player.handleTouchDown(x, y, pid, joystick, skillButtons, skillPointerIds);
                 break;

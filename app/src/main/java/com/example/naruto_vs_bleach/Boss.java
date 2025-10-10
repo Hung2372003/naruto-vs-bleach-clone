@@ -20,6 +20,15 @@ public class Boss extends Player {
         facingRight = false;
         hitboxScaleX = 0.5f; hitboxScaleY = 0.8f;
     }
+    public boolean alive = true; // nếu chưa có
+    public void takeDamage(int dmg) {
+        if (!alive) return;
+        hp -= Math.max(0, dmg);
+        if (hp <= 0) {
+            hp = 0;
+            alive = false;   // 🔴 đánh dấu chết tại đây
+        }
+    }
 
     @Override
     public void update() {

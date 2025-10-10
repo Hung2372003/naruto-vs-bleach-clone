@@ -56,7 +56,6 @@ public class Player extends GameObject {
 //        return Projecttile;
 //    }
 
-
     public Player(Context context, int groundY) {
         this.groundY = groundY;
 
