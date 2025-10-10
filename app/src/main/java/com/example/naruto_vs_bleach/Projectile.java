@@ -8,51 +8,40 @@ import android.graphics.Rect;
 
 public class Projectile {
     public float x, y;
-    public float speed = 20f;   // tốc độ bay
-    public boolean facingRight;
+    public float speedX, speedY;
     public boolean alive = true;
-    public int damage = 20;
+    private Bitmap sprite;
+    private boolean facingRight;
 
-    private Animation anim;
-
-    public Projectile(float x, float y, boolean facingRight, Animation anim) {
+    public Projectile(float x, float y, float speedX, float speedY, Bitmap sprite, boolean facingRight) {
         this.x = x;
         this.y = y;
+        this.speedX = speedX;
+        this.speedY = speedY;
+        this.sprite = sprite;
         this.facingRight = facingRight;
-        this.anim = anim;
     }
 
-    public void update(int mapWidth) {
-        // di chuyển projectile
-        x += facingRight ? speed : -speed;
-
-        // update animation
-        anim.update();
-
-        // nếu bay ra ngoài map => chết
-        if (x < 0 || x > mapWidth) alive = false;
+    public void update() {
+        x += speedX;
+        y += speedY;
     }
 
     public void draw(Canvas canvas, Paint paint) {
-        Bitmap frame = anim.getCurrentFrame();
-        if (frame == null) return;
-
+        if (sprite == null) return;
         if (facingRight) {
-            canvas.drawBitmap(frame, x - frame.getWidth()/2f, y - frame.getHeight()/2f, paint);
+            canvas.drawBitmap(sprite, x - sprite.getWidth() / 2f, y - sprite.getHeight(), paint);
         } else {
             Matrix m = new Matrix();
             m.preScale(-1, 1);
-            Bitmap flipped = Bitmap.createBitmap(frame, 0, 0, frame.getWidth(), frame.getHeight(), m, true);
-            canvas.drawBitmap(flipped, x - frame.getWidth()/2f, y - frame.getHeight()/2f, paint);
+            Bitmap flipped = Bitmap.createBitmap(sprite, 0, 0, sprite.getWidth(), sprite.getHeight(), m, true);
+            canvas.drawBitmap(flipped, x - sprite.getWidth() / 2f, y - sprite.getHeight(), paint);
         }
     }
 
     public Rect getBounds() {
-        Bitmap frame = anim.getCurrentFrame();
-        if (frame == null) return new Rect((int)x, (int)y, (int)x, (int)y);
-
-        int w = frame.getWidth();
-        int h = frame.getHeight();
-        return new Rect((int)(x - w/2f), (int)(y - h/2f), (int)(x + w/2f), (int)(y + h/2f));
+        if (sprite == null) return new Rect((int)x, (int)y, (int)x, (int)y);
+        return new Rect((int)(x - sprite.getWidth()/2f), (int)(y - sprite.getHeight()),
+                (int)(x + sprite.getWidth()/2f), (int)y);
     }
 }

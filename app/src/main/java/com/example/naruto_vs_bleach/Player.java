@@ -13,8 +13,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Player extends GameObject {
-    public int maxHp;
-    public int hp;
+    public static int maxHp;
+    public static int hp;
     public boolean alive = true;
     public Animation runAnim, jumpAnim, idleAnim;
     private Animation attackAnim1, attackAnim2, attackAnim3;
@@ -51,10 +51,9 @@ public class Player extends GameObject {
     private int joystickPointerId = -1;
     protected float hitboxScaleX = 0.5f; // mặc định 50% chiều rộng
     protected float hitboxScaleY = 0.8f; // mặc định 80% chiều cao
-    // thêm vào lớp Player
-//    public List<Projecttile> getProjectiles() {
-//        return Projecttile;
-//    }
+    public final List<Projectile> projectiles = new ArrayList<>();
+    private Bitmap s4ProjectileSprite;
+
 
     public Player(Context context, int groundY) {
         this.groundY = groundY;
@@ -93,6 +92,7 @@ public class Player extends GameObject {
         List<Bitmap> s2Skill = Utils.loadFrames(context, "ichigo-convert/y-forword-attack");
         List<Bitmap> s3Skill = Utils.loadFrames(context, "ichigo-convert/dash");
         List<Bitmap> s4Skill = Utils.loadFrames(context, "ichigo-convert/until");
+        List<Bitmap> s4SkillAnimE = Utils.loadFrames(context, "ichigo-convert/until-e");
 
         attack3EffectAnim = new Animation(Utils.loadFrames(context, "effects/attack3"), 50);
 
@@ -105,7 +105,7 @@ public class Player extends GameObject {
         s1SkillAnim = new Animation(s1Skill, 120);
         s2SkillAnim = new Animation(s2Skill, 70);
         s3SkillAnim = new Animation(s3Skill, 150);
-        s4SkillAnim = new Animation(s4Skill, 150);
+        s4SkillAnim = new Animation(s4Skill, 50);
 
         currentAnim = idleAnim;
         x = 200;
@@ -154,10 +154,20 @@ public class Player extends GameObject {
                     currentAnim = idleAnim;
                 }
             }
-            return;
+
+                return;
         }
 
-        currentAnim.update();
+
+        for (int i = projectiles.size() - 1; i >= 0; i--) {
+            Projectile p = projectiles.get(i);
+            p.update();
+            // nếu ra khỏi màn hình
+            if (p.x < 0 || p.x > screenWidth) {
+                projectiles.remove(i);
+            }
+        }
+            currentAnim.update();
     }
 
     private void startAttack2() {
@@ -211,6 +221,9 @@ public class Player extends GameObject {
             m.preScale(-1, 1);
             Bitmap flipped = Bitmap.createBitmap(frame, 0, 0, frame.getWidth(), frame.getHeight(), m, true);
             canvas.drawBitmap(flipped, screenX - frame.getWidth() / 2f, screenY - frame.getHeight(), paint);
+        }
+        for (Projectile p : projectiles) {
+            p.draw(canvas, paint);
         }
     }
 
@@ -266,14 +279,22 @@ public class Player extends GameObject {
         x = x + (facingRight ? speed * 30 : -speed * 30);
     }
     public void useS4Skill() {
-        if (isAttacking || usingS4Skill) return; // fix: check đúng biến
+        if (isAttacking || usingS4Skill) return;
+
         usingS4Skill = true;
         isAttacking = true;
         currentAnim = s4SkillAnim;
         s4SkillAnim.reset();
-        //x = x + (facingRight ? speed * 30 : -speed * 30);
 
+        // bắn projectile sau khi animation bắt đầu (hoặc có delay nếu muốn)
+        float projX = x + (facingRight ? 50 : -50); // xuất hiện trước nhân vật
+        float projY = y - 50; // chỉnh theo chiều cao nhân vật
+        float projSpeed = 20f * (facingRight ? 1 : -1);
+
+        Projectile proj = new Projectile(projX, projY, projSpeed, 0, s4ProjectileSprite, facingRight);
+        projectiles.add(proj);
     }
+
 
     public void takeDamage(int dmg) {
         if (!alive) return;

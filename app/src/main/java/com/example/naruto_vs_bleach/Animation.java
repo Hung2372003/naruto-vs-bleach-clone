@@ -1,9 +1,11 @@
 package com.example.naruto_vs_bleach;
 
 import android.graphics.Bitmap;
+
+import java.util.ArrayList;
 import java.util.List;
 
-public class Animation {
+public class Animation implements Cloneable{
     private List<Bitmap> frames;
     private int frameIndex = 0;
     private long lastFrameTime = 0;
@@ -54,6 +56,17 @@ public class Animation {
     // ✅ Thêm method này để boss hoặc skill check frame hiện tại
     public int getCurrentFrameIndex() {
         return frameIndex;
+    }
+    @Override
+    public Animation clone() {
+        try {
+            Animation copy = (Animation) super.clone(); // shallow copy
+            copy.frames = new ArrayList<>(this.frames); // deep copy nếu cần
+            copy.frameIndex = 0; // reset animation khi clone
+            return copy;
+        } catch (CloneNotSupportedException e) {
+            throw new AssertionError(); // sẽ không xảy ra
+        }
     }
 }
 

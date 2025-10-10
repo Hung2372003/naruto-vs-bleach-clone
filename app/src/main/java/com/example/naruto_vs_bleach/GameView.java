@@ -96,6 +96,8 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
         x = Math.max(pad, Math.min(getWidth()  - pad, x));
         y = Math.max(pad, Math.min(getHeight() - pad, y));
         return new float[]{x, y};
+
+
     }
 
     @Override
@@ -119,9 +121,25 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
 
         // ---- Boss AI update ----
         boss.update();
+        for (int i = player.projectiles.size() - 1; i >= 0; i--) {
+            Projectile p = player.projectiles.get(i);
+            p.update();
 
+            // kiểm tra va chạm với boss
+            if (Rect.intersects(p.getBounds(), boss.getBounds())) {
+                boss.takeDamage(500); // damage chiêu S4
+                player.projectiles.remove(i); // loại bỏ projectile
+                continue;
+            }
+
+            // nếu projectile ra ngoài màn hình
+            if (p.x < 0 || p.x > mapWidth) {
+                player.projectiles.remove(i);
+            }
+        }
         // ---- Check collision ----
         checkCollisions();
+
         if (!gameOverLaunched) {
             if (boss != null && (!boss.alive || boss.hp <= 0)) {
                 launchGameOver(true);      // Bạn thắng
@@ -132,7 +150,6 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
                 return;
             }
         }
-
 
     }
     private void launchGameOver(boolean win) {
@@ -206,8 +223,8 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
             float playerScreenX = player.x - cameraX;
             float bossScreenX = boss.x - cameraX;
 
-            drawFootGlow(canvas, playerScreenX, player.y, player.getCurrentFrame().getWidth(),
-                    player.getCurrentFrame().getHeight(), Color.GREEN);
+//            drawFootGlow(canvas, playerScreenX, player.y, player.getCurrentFrame().getWidth(),
+//                    player.getCurrentFrame().getHeight(), Color.GREEN);
             drawFootGlow(canvas, bossScreenX, boss.y, boss.getCurrentFrame().getWidth(),
                     boss.getCurrentFrame().getHeight(), Color.RED);
 
@@ -259,10 +276,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
         int idx = e.getActionIndex();
         int pid = e.getPointerId(idx);
         float x = e.getX(idx), y = e.getY(idx);
-        if (!gameOverLaunched && e.getPointerCount() >= 1) { // chạm 3 ngón để mở thua ngay
-            launchGameOver(true);
-            return true;
-        }
+
         switch (e.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
 

@@ -3,6 +3,9 @@ package com.example.naruto_vs_bleach;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Rect;
+
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 public class Boss extends Player {
@@ -11,6 +14,8 @@ public class Boss extends Player {
     private long lastActionTime = 0;
     private final long actionInterval = 50; // update liên tục
     private final float ATTACK_RANGE = 120f;
+    public List<Projectile> projectiles = new ArrayList<>();
+    private Bitmap projectileSprite; // Load từ resources
 
     public Boss(Context context, int groundY, Player target) {
         super(context, groundY);
@@ -47,6 +52,7 @@ public class Boss extends Player {
         moveBossTowardPlayer(dx);
         // --- đẩy nhau nếu chạm ---
         handleCollisionWithPlayer();
+
     }
 
     private void aiMove() {
@@ -138,5 +144,7 @@ public class Boss extends Player {
             idle(); // chạm thì đứng yên
         }
     }
+
+
 }
 
