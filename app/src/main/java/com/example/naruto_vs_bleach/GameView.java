@@ -24,7 +24,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
     private float mapScale;
     private int mapWidth;
     private float dpUnit = 1f;
-   public boolean isGameOver = false;
+
     public GameView(Context context) {
         super(context);
         getHolder().addCallback(this);
@@ -110,32 +110,32 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
     }
 
     private void update() {
-        if (player.isGameOver) {
-            // Dừng tất cả hành động
-            return;
-        }
-
+        // ---- Player update ----
         player.updateWithJoystick(joystick);
         player.update();
-        boss.update();
 
+        // ---- Boss AI update ----
+        boss.update();
         for (int i = player.projectiles.size() - 1; i >= 0; i--) {
             Projectile p = player.projectiles.get(i);
             p.update();
 
+            // kiểm tra va chạm với boss
             if (Rect.intersects(p.getBounds(), boss.getBounds())) {
-                boss.takeDamage(500);
-                player.projectiles.remove(i);
+                boss.takeDamage(500); // damage chiêu S4
+                player.projectiles.remove(i); // loại bỏ projectile
                 continue;
             }
+
+            // nếu projectile ra ngoài màn hình
             if (p.x < 0 || p.x > mapWidth) {
                 player.projectiles.remove(i);
             }
         }
-
+        // ---- Check collision ----
         checkCollisions();
-    }
 
+    }
 
     private void checkCollisions() {
         Rect playerHitbox = player.getBounds();
@@ -194,8 +194,8 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
             float playerScreenX = player.x - cameraX;
             float bossScreenX = boss.x - cameraX;
 
-            drawFootGlow(canvas, playerScreenX, player.y, player.getCurrentFrame().getWidth(),
-                    player.getCurrentFrame().getHeight(), Color.GREEN);
+//            drawFootGlow(canvas, playerScreenX, player.y, player.getCurrentFrame().getWidth(),
+//                    player.getCurrentFrame().getHeight(), Color.GREEN);
             drawFootGlow(canvas, bossScreenX, boss.y, boss.getCurrentFrame().getWidth(),
                     boss.getCurrentFrame().getHeight(), Color.RED);
 
@@ -209,26 +209,6 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
             // ---- UI ----
             joystick.draw(canvas, paint);
             for (SkillButton btn : skillButtons) btn.draw(canvas);
-            if (player.isGameOver) {
-                Paint textPaint = new Paint();
-                textPaint.setTextSize(80);
-                textPaint.setColor(Color.RED);
-                textPaint.setTextAlign(Paint.Align.CENTER);
-                canvas.drawText("GAME OVER", canvas.getWidth()/2, canvas.getHeight()/2, textPaint);
-            }
-            if (player.isGameOver) {
-                // Vẽ restart button
-                Paint btnPaint = new Paint();
-                btnPaint.setColor(Color.BLUE);
-                canvas.drawRect(canvas.getWidth()/2 - 150, canvas.getHeight()/2 + 100,
-                        canvas.getWidth()/2 + 150, canvas.getHeight()/2 + 200, btnPaint);
-
-                Paint textPaint = new Paint();
-                textPaint.setTextSize(50);
-                textPaint.setColor(Color.WHITE);
-                textPaint.setTextAlign(Paint.Align.CENTER);
-                canvas.drawText("RESTART", canvas.getWidth()/2, canvas.getHeight()/2 + 160, textPaint);
-            }
 
         } finally {
             getHolder().unlockCanvasAndPost(canvas);
@@ -264,22 +244,6 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
 
     @Override
     public boolean onTouchEvent(MotionEvent e) {
-        if (player.isGameOver) {
-            // Kiểm tra chạm vào nút Restart
-            if (e.getAction() == MotionEvent.ACTION_DOWN) {
-                float x = e.getX(), y = e.getY();
-                float left = getWidth()/2 - 150;
-                float right = getWidth()/2 + 150;
-                float top = getHeight()/2 + 100;
-                float bottom = getHeight()/2 + 200;
-
-                if (x >= left && x <= right && y >= top && y <= bottom) {
-                    restartGame();
-                }
-            }
-            return true; // chặn các input khác
-        }
-
         int idx = e.getActionIndex();
         int pid = e.getPointerId(idx);
         float x = e.getX(idx), y = e.getY(idx);
@@ -301,19 +265,11 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
         return true;
     }
 
-
     @Override
     public void surfaceChanged(SurfaceHolder h, int f, int w, int he) {}
     @Override
     public void surfaceDestroyed(SurfaceHolder holder) {
         running = false;
         try { gameThread.join(); } catch (Exception ignored) {}
-    }
-    private void restartGame() {
-        // reset player, boss
-        player = new Player(getContext(), groundY);
-        boss = new Boss(getContext(), groundY, player);
-        joystick.reset();
-        skillPointerIds.clear();
     }
 }
